@@ -120,6 +120,7 @@ func main() {
 	params.turns = 10000000000
 
 	startControlServer(params)
+	go getKeyboardCommand(nil)
 	gameOfLife(params, nil)
 	StopControlServer()
 }
