@@ -81,6 +81,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
+	// Sends the world to the pgm channel
 	for y := range world {
 		for x := range world[y]{
 			d.io.outputVal <- world[y][x]
