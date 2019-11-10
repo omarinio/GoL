@@ -81,6 +81,12 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
+	for y := range world {
+		for x := range world[y]{
+			d.io.outputVal <- world[y][x]
+		}
+	}
+
 	// Make sure that the Io has finished any output before exiting.
 	d.io.command <- ioCheckIdle
 	<-d.io.idle
