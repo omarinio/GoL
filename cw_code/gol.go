@@ -18,6 +18,25 @@ func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	}
 }
 
+func updateCell(p golParams, y int, x int, world [][]byte, world2 [][]byte) {
+	alive := 0
+	for i := -1; i <= 1 ; i++ {
+		for j := -1; j <= 1; j++ {
+			if (i != 0 || j != 0) && world2[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
+				alive++
+			}
+		}
+	}
+	if world2[y][x] != 0 {
+		if alive < 2 || alive > 3 {
+			world[y][x] = world[y][x] ^ 0xFF
+		}
+	} else {
+		if alive == 3 {
+			world[y][x] = world[y][x] ^ 0xFF
+		}
+	}
+}
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p golParams, d distributorChans, alive chan []cell) {
@@ -54,27 +73,8 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 	for turns := 0; turns < p.turns; turns++ {
 		for y := 0; y < p.imageHeight; y++ {
 			for x := 0; x < p.imageWidth; x++ {
-				// Placeholder for the actual Game of Life logic: flips alive cells to dead and dead cells to alive.
-				//world[y][x] = world[y][x] ^ 0xFF
-				alive := 0
-				for i := -1; i <= 1 ; i++ {
-					for j := -1; j <= 1; j++ {
-						if (i != 0 || j != 0) && world2[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
-							alive++
-						}
-					}
-				}
-
-				if world2[y][x] != 0 {
-					if alive < 2 || alive > 3 {
-						world[y][x] = world[y][x] ^ 0xFF
-					}
-				} else {
-					if alive == 3 {
-						world[y][x] = world[y][x] ^ 0xFF
-					}
-				}
-
+				//Update state of current cell.
+				updateCell(p, y, x, world, world2)
 			}
 		}
 		for i := range world {
