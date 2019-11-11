@@ -18,6 +18,10 @@ func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	}
 }
 
+func worker(startY, endY, startX, endX int, out chan<- byte) {
+
+}
+
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p golParams, d distributorChans, alive chan []cell) {
@@ -47,6 +51,13 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 	for i := range world {
 		world2[i] = make([]byte, len(world[i]))
 		copy(world2[i], world[i])
+	}
+
+	//Array of channels intended for workers
+	out := make([]chan byte, p.threads)
+
+	for i := range out {
+		out[i] = make(chan byte)
 	}
 
 
