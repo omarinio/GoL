@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+func outputWorld(p golParams, d distributorChans, world [][]byte) {
+	d.io.command <- ioInput
+	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight)}, "x")
+
+	// Sends the world to the pgm channel
+	for y := range world {
+		for x := range world[y]{
+			d.io.outputVal <- world[y][x]
+		}
+	}
+}
+
+
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p golParams, d distributorChans, alive chan []cell) {
 
@@ -81,17 +94,12 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
-	// Sends the world to the pgm channel
-	for y := range world {
-		for x := range world[y]{
-			d.io.outputVal <- world[y][x]
-		}
-	}
-
 	// Make sure that the Io has finished any output before exiting.
 	d.io.command <- ioCheckIdle
 	<-d.io.idle
 
 	// Return the coordinates of cells that are still alive.
 	alive <- finalAlive
+
+	outputWorld(p, d, world)
 }
