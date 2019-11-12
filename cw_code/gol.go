@@ -18,6 +18,14 @@ func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	}
 }
 
+func modPos(d, m int) int {
+	var res = d % m
+	if (res < 0 && m > 0) || (res > 0 && m < 0) {
+		return res + m
+	}
+	return res
+}
+
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
 	smallWorld := make([][]byte, endY-startY+2)
@@ -25,25 +33,32 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 		smallWorld[i] = make([]byte, p.imageWidth)
 	}
 
+	for {
 
+		for i := range smallWorld {
+			for j := 0; j < p.imageWidth; j++ {
+				smallWorld[i][j] = <- in
+			}
+		}
 
-	for y := startY; y < endY; y++ {
-		for x := 0; x < p.imageWidth; x++ {
-			alive := 0
-			for i := -1; i <= 1; i++ {
-				for j := -1; j <= 1; j++ {
-					if (i != 0 || j != 0) && world2[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
-						alive++
+		for y := startY+1; y < endY-startY+1; y++ {
+			for x := 0; x < p.imageWidth; x++ {
+				alive := 0
+				for i := -1; i <= 1; i++ {
+					for j := -1; j <= 1; j++ {
+						if (i != 0 || j != 0) && smallWorld[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
+							alive++
+						}
 					}
 				}
-			}
-			if world2[y][x] != 0 {
-				if alive < 2 || alive > 3 {
-					out <-  world[y][x] ^ 0xFF
-				}
-			} else {
-				if alive == 3 {
-					out <- world[y][x] ^ 0xFF
+				if smallWorld[y][x] != 0 {
+					if alive < 2 || alive > 3 {
+						out <- smallWorld[y][x] ^ 0xFF
+					}
+				} else {
+					if alive == 3 {
+						out <- smallWorld[y][x] ^ 0xFF
+					}
 				}
 			}
 		}
@@ -102,27 +117,28 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns := 0; turns < p.turns; turns++ {
 		//Sends world byte by byte to workers
-		for t := 0; t < p.threads; p++ {
+		for t := 0; t < p.threads; t++ {
 			for y := workerHeight*t - 1; y < workerHeight*t + 1; y++ {
 				for x := 0; x < p.imageWidth; x++ {
-					in[t] <- world[t*(y%p.imageHeight)][x]
+					in[t] <- world[modPos(y, p.imageHeight)][modPos(x, p.imageWidth)]
+				}
+			}
+		}
+
+
+		for t := 0; t < p.threads; t++ {
+			for y := workerHeight*t - 1; y < workerHeight*t + 1; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					world[t*(y%p.imageHeight)][x%p.imageWidth] = <- out[t]
 				}
 			}
 
 		}
 
 
-		for y:= 0; y < p.imageHeight; y++ {
-			for x:= 0; x < p.imageWidth; x++ {
-
-			}
-		}
-
-
 		for i := range world {
 			world2[i] = make([]byte, len(world[i]))
-
-			//copy(world2[i], world[i])
+			copy(world2[i], world[i])
 		}
 	}
 
