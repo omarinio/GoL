@@ -8,7 +8,7 @@ import (
 
 func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	d.io.command <- ioOutput
-	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight)}, "x")
+	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight) + "-" + strconv.Itoa(p.turns)}, "x")
 
 	// Sends the world to the pgm channel
 	for y := range world {
@@ -18,30 +18,36 @@ func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	}
 }
 
-//func worker(startY, endY, startX, endX int, p golParams, out chan<- byte) {
-//    imagePart := updateCell(p, )
-//}
+func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
-//Logic for Game of Life
-func updateCell(p golParams, x, y int, world [][]byte, world2 [][]byte) {
+	smallWorld := make([][]byte, endY-startY+2)
+	for i := range smallWorld {
+		smallWorld[i] = make([]byte, p.imageWidth)
+	}
 
-		alive := 0
-		for i := -1; i <= 1 ; i++ {
-			for j := -1; j <= 1; j++ {
-				if (i != 0 || j != 0) && world2[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
-					alive++
+
+
+	for y := startY; y < endY; y++ {
+		for x := 0; x < p.imageWidth; x++ {
+			alive := 0
+			for i := -1; i <= 1; i++ {
+				for j := -1; j <= 1; j++ {
+					if (i != 0 || j != 0) && world2[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
+						alive++
+					}
+				}
+			}
+			if world2[y][x] != 0 {
+				if alive < 2 || alive > 3 {
+					out <-  world[y][x] ^ 0xFF
+				}
+			} else {
+				if alive == 3 {
+					out <- world[y][x] ^ 0xFF
 				}
 			}
 		}
-		if world2[y][x] != 0 {
-			if alive < 2 || alive > 3 {
-				world[y][x] = world[y][x] ^ 0xFF
-			}
-		} else {
-			if alive == 3 {
-				world[y][x] = world[y][x] ^ 0xFF
-			}
-		}
+	}
 }
 
 
@@ -76,30 +82,47 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		copy(world2[i], world[i])
 	}
 
-	//workerHeight := p.imageHeight / p.threads
-	////Array of channels intended for workers
-	//out := make([]chan byte, p.threads)
-	//
-	//for i := range out {
-	//	out[i] = make(chan byte)
-	//}
-	//
-	//for i := 0; i < 4; i++ {
-	//	go worker(i*workerHeight, (i+1)*workerHeight, 0, p.imageWidth, p, out[i])
-	//}
+	workerHeight := p.imageHeight / p.threads
+	//Array of channels intended for workers
+	out := make([]chan byte, p.threads)
+	in := make([]chan byte, p.threads)
 
+	for i := range out {
+		out[i] = make(chan byte)
+	}
+
+	for i := range out {
+		in[i] = make(chan byte)
+	}
+
+	for i := 0; i < p.threads; i++ {
+		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+	}
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns := 0; turns < p.turns; turns++ {
-		for y := 0; y < p.imageHeight; y++ {
-			for x := 0; x < p.imageWidth; x++ {
-				//Update state of current cell.
-				updateCell(p, y, x, world, world2)
+		//Sends world byte by byte to workers
+		for t := 0; t < p.threads; p++ {
+			for y := workerHeight*t - 1; y < workerHeight*t + 1; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					in[t] <- world[t*(y%p.imageHeight)][x]
+				}
+			}
+
+		}
+
+
+		for y:= 0; y < p.imageHeight; y++ {
+			for x:= 0; x < p.imageWidth; x++ {
+
 			}
 		}
+
+
 		for i := range world {
 			world2[i] = make([]byte, len(world[i]))
-			copy(world2[i], world[i])
+
+			//copy(world2[i], world[i])
 		}
 	}
 
