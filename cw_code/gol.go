@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
+//Sends world to pgm channel
 func outputWorld(p golParams, d distributorChans, world [][]byte) {
 	d.io.command <- ioOutput
 	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight) + "-" + strconv.Itoa(p.turns)}, "x")
 
-	// Sends the world to the pgm channel
 	for y := range world {
 		for x := range world[y]{
 			d.io.outputVal <- world[y][x]
@@ -27,24 +27,26 @@ func modPos(d, m int) int {
 }
 
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
-
 	smallWorld := make([][]byte, endY-startY+2)
 	for i := range smallWorld {
 		smallWorld[i] = make([]byte, p.imageWidth)
 	}
 
+	//Sets height of slice to be equivalent to image height/num of workers
 	smallWorldHeight := endY-startY+2
 
+	//Infinite loop
 	for {
-
 		for y := 0; y < endY-startY+2; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				smallWorld[y][x] = <- in
 			}
 		}
 
+		//Updating cells logic
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
+				//Alive neighbours counter
 				alive := 0
 				for i := -1; i <= 1; i++ {
 					for j := -1; j <= 1; j++ {
@@ -53,16 +55,19 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 						}
 					}
 				}
+				//Changing state of cells based on game rules
 				if smallWorld[y][x] != 0 {
 					if alive < 2 || alive > 3 {
 						out <- smallWorld[y][x] ^ 0xFF
 					} else {
+						//Push unchanged cells to 'out' channel
 						out <- smallWorld[y][x]
 					}
 				} else {
 					if alive == 3 {
 						out <- smallWorld[y][x] ^ 0xFF
 					} else {
+						//Push unchanged cells to 'out' channel
 						out <- smallWorld[y][x]
 					}
 				}
@@ -96,13 +101,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
-	////Copy of world
-	//world2 := make([][]byte, len(world))
-	//for i := range world {
-	//	world2[i] = make([]byte, len(world[i]))
-	//	copy(world2[i], world[i])
-	//}
-
 	//Height the worker will work on
 	workerHeight := p.imageHeight / p.threads
 
@@ -110,14 +108,17 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 	out := make([]chan byte, p.threads)
 	in := make([]chan byte, p.threads)
 
+	//Create separate 'out' channels for each worker
 	for i := range out {
 		out[i] = make(chan byte)
 	}
 
+	//Create separate 'in' channels for each worker
 	for i := range in {
 		in[i] = make(chan byte)
 	}
 
+	//Start all worker goroutines
 	for i := 0; i < p.threads; i++ {
 		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
 	}
@@ -147,6 +148,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 
 	}
 
+	//Output world to pgm file using 'outputWorld' function
 	outputWorld(p, d, world)
 
 	// Create an empty slice to store coordinates of cells that are still alive after p.turns are done.
