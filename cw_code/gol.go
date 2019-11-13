@@ -33,20 +33,22 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 		smallWorld[i] = make([]byte, p.imageWidth)
 	}
 
+	smallWorldHeight := endY-startY+2
+
 	for {
 
-		for i := range smallWorld {
-			for j := 0; j < p.imageWidth; j++ {
-				smallWorld[i][j] = <- in
+		for y := 0; y < endY-startY+2; y++ {
+			for x := 0; x < p.imageWidth; x++ {
+				smallWorld[y][x] = <- in
 			}
 		}
 
-		for y := startY+1; y < endY-startY+1; y++ {
+		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				alive := 0
 				for i := -1; i <= 1; i++ {
 					for j := -1; j <= 1; j++ {
-						if (i != 0 || j != 0) && smallWorld[((y+i)+p.imageHeight)%p.imageHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
+						if (i != 0 || j != 0) && smallWorld[((y+i)+smallWorldHeight)%smallWorldHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
 							alive++
 						}
 					}
@@ -54,10 +56,14 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 				if smallWorld[y][x] != 0 {
 					if alive < 2 || alive > 3 {
 						out <- smallWorld[y][x] ^ 0xFF
+					} else {
+						out <- smallWorld[y][x]
 					}
 				} else {
 					if alive == 3 {
 						out <- smallWorld[y][x] ^ 0xFF
+					} else {
+						out <- smallWorld[y][x]
 					}
 				}
 			}
@@ -90,14 +96,16 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
-	//Copy of world
-	world2 := make([][]byte, len(world))
-	for i := range world {
-		world2[i] = make([]byte, len(world[i]))
-		copy(world2[i], world[i])
-	}
+	////Copy of world
+	//world2 := make([][]byte, len(world))
+	//for i := range world {
+	//	world2[i] = make([]byte, len(world[i]))
+	//	copy(world2[i], world[i])
+	//}
 
+	//Height the worker will work on
 	workerHeight := p.imageHeight / p.threads
+
 	//Array of channels intended for workers
 	out := make([]chan byte, p.threads)
 	in := make([]chan byte, p.threads)
@@ -106,7 +114,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		out[i] = make(chan byte)
 	}
 
-	for i := range out {
+	for i := range in {
 		in[i] = make(chan byte)
 	}
 
@@ -118,28 +126,25 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 	for turns := 0; turns < p.turns; turns++ {
 		//Sends world byte by byte to workers
 		for t := 0; t < p.threads; t++ {
-			for y := workerHeight*t - 1; y < workerHeight*t + 1; y++ {
+			for y := 0; y < workerHeight+2; y++ {
 				for x := 0; x < p.imageWidth; x++ {
-					in[t] <- world[modPos(y, p.imageHeight)][modPos(x, p.imageWidth)]
+					in[t] <- world[modPos(y + (t*(workerHeight)-1), p.imageHeight)][x]
 				}
 			}
 		}
 
-
+		//Receives world byte by byte from workers
 		for t := 0; t < p.threads; t++ {
-			for y := workerHeight*t - 1; y < workerHeight*t + 1; y++ {
+			for y := 0; y < workerHeight; y++ {
 				for x := 0; x < p.imageWidth; x++ {
-					world[t*(y%p.imageHeight)][x%p.imageWidth] = <- out[t]
+					world[y+(t*workerHeight)][x] = <- out[t]
 				}
 			}
 
 		}
 
 
-		for i := range world {
-			world2[i] = make([]byte, len(world[i]))
-			copy(world2[i], world[i])
-		}
+
 	}
 
 	outputWorld(p, d, world)

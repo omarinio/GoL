@@ -106,24 +106,24 @@ func main() {
 	flag.IntVar(
 		&params.threads,
 		"t",
-		8,
+		2,
 		"Specify the number of worker threads to use. Defaults to 8.")
 
 	flag.IntVar(
 		&params.imageWidth,
 		"w",
-		512,
+		64,
 		"Specify the width of the image. Defaults to 512.")
 
 	flag.IntVar(
 		&params.imageHeight,
 		"h",
-		512,
+		64,
 		"Specify the height of the image. Defaults to 512.")
 
 	flag.Parse()
 
-	params.turns = 10000000000
+	params.turns = 1
 
 	startControlServer(params)
 	go getKeyboardCommand(nil)
