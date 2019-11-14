@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-func outputWorld(p golParams, d distributorChans, world [][]byte) {
+func outputWorld(p golParams, d distributorChans, world [][]byte, turns int) {
 	d.io.command <- ioOutput
-	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight) + "-" + strconv.Itoa(p.turns)}, "x")
+	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight) + "-" + strconv.Itoa(turns)}, "x")
 
 	// Sends the world to the pgm channel
 	for y := range world {
@@ -28,16 +28,16 @@ func modPos(d, m int) int {
 
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
-	smallWorld := make([][]byte, endY-startY+2)
+	smallWorldHeight := endY-startY+2
+
+	smallWorld := make([][]byte, smallWorldHeight)
 	for i := range smallWorld {
 		smallWorld[i] = make([]byte, p.imageWidth)
 	}
 
-	smallWorldHeight := endY-startY+2
-
 	for {
 
-		for y := 0; y < endY-startY+2; y++ {
+		for y := 0; y < smallWorldHeight; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				smallWorld[y][x] = <- in
 			}
@@ -71,9 +71,20 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	}
 }
 
+func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
+	for {
+		select {
+		case i := <-keyChan:
+			if i == 's' {
+				outputWorld(p, d, world, *turns)
+			}
+		}
+	}
+}
+
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p golParams, d distributorChans, alive chan []cell) {
+func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-chan rune) {
 
 	// Create the 2D slice to store the world.
 	world := make([][]byte, p.imageHeight)
@@ -96,13 +107,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		}
 	}
 
-	////Copy of world
-	//world2 := make([][]byte, len(world))
-	//for i := range world {
-	//	world2[i] = make([]byte, len(world[i]))
-	//	copy(world2[i], world[i])
-	//}
-
 	//Height the worker will work on
 	workerHeight := p.imageHeight / p.threads
 
@@ -122,8 +126,11 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
 	}
 
+	turns := 0
+	go eventController(keyChan, p, d, world, &turns)
+
 	// Calculate the new state of Game of Life after the given number of turns.
-	for turns := 0; turns < p.turns; turns++ {
+	for turns = 0; turns < p.turns; turns++ {
 		//Sends world byte by byte to workers
 		for t := 0; t < p.threads; t++ {
 			for y := 0; y < workerHeight+2; y++ {
@@ -143,11 +150,9 @@ func distributor(p golParams, d distributorChans, alive chan []cell) {
 
 		}
 
-
-
 	}
 
-	outputWorld(p, d, world)
+	outputWorld(p, d, world, p.turns)
 
 	// Create an empty slice to store coordinates of cells that are still alive after p.turns are done.
 	var finalAlive []cell
