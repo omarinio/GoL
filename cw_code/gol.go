@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -71,13 +72,20 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	}
 }
 
-func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
+func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int, isPause chan bool) {
 	for {
 		select {
 		case i := <-keyChan:
 			if i == 's' {
 				outputWorld(p, d, world, *turns)
+			} else if i == 'p' {
+				continue
+			} else if i == 'q' {
+				outputWorld(p, d, world, *turns)
+				StopControlServer()
+				os.Exit(0)
 			}
+
 		}
 	}
 }
@@ -127,7 +135,9 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	}
 
 	turns := 0
-	go eventController(keyChan, p, d, world, &turns)
+	pause := false
+	isPause := make(chan bool)
+	go eventController(keyChan, p, d, world, &turns, isPause)
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
@@ -148,6 +158,11 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 				}
 			}
 
+		}
+
+		select {
+			case <- isPause:
+				pause = true
 		}
 
 	}
