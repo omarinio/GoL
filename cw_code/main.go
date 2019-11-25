@@ -106,24 +106,24 @@ func main() {
 	flag.IntVar(
 		&params.threads,
 		"t",
-		2,
+		4,
 		"Specify the number of worker threads to use. Defaults to 8.")
 
 	flag.IntVar(
 		&params.imageWidth,
 		"w",
-		64,
+		256,
 		"Specify the width of the image. Defaults to 512.")
 
 	flag.IntVar(
 		&params.imageHeight,
 		"h",
-		64,
+		256,
 		"Specify the height of the image. Defaults to 512.")
 
 	flag.Parse()
 
-	params.turns = 10000
+	params.turns = 1000
 
 	startControlServer(params)
 	input := make(chan rune)
