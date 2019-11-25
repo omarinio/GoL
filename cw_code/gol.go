@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -79,7 +80,7 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 			if i == 's' {
 				outputWorld(p, d, world, *turns)
 			} else if i == 'p' {
-				continue
+				isPause <- true
 			} else if i == 'q' {
 				outputWorld(p, d, world, *turns)
 				StopControlServer()
@@ -88,6 +89,12 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 
 		}
 	}
+}
+
+func pauseGame(turns int) {
+	fmt.Println("Current turn in execution: ", turns)
+	bufio.NewReader(os.Stdin).ReadBytes('p')
+	fmt.Println("Continuing.")
 }
 
 
@@ -135,12 +142,20 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	}
 
 	turns := 0
-	pause := false
 	isPause := make(chan bool)
 	go eventController(keyChan, p, d, world, &turns, isPause)
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
+
+		select {
+		case b := <- isPause:
+			if b {
+				pauseGame(turns)
+			}
+		default:
+		}
+
 		//Sends world byte by byte to workers
 		for t := 0; t < p.threads; t++ {
 			for y := 0; y < workerHeight+2; y++ {
@@ -158,11 +173,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 				}
 			}
 
-		}
-
-		select {
-			case <- isPause:
-				pause = true
 		}
 
 	}
