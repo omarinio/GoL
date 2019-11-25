@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func outputWorld(p golParams, d distributorChans, world [][]byte, turns int) {
@@ -75,6 +76,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
 func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int, isPause chan bool) {
 	for {
+		timePrint := time.After(2 * time.Second)
 		select {
 		case i := <-keyChan:
 			if i == 's' {
@@ -86,13 +88,23 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 				StopControlServer()
 				os.Exit(0)
 			}
+		case <- timePrint:
+			count := 0
+			for y := 0; y < p.imageHeight; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					if world[y][x] != 0 {
+						count++
+					}
+				}
+			}
+			fmt.Println("Alive cells: " + strconv.Itoa(count))
 
 		}
 	}
 }
 
 func pauseGame(turns int) {
-	fmt.Println("Current turn in execution: ", turns)
+	fmt.Println("Game paused, current turn: ", turns)
 	bufio.NewReader(os.Stdin).ReadBytes('p')
 	fmt.Println("Continuing.")
 }
