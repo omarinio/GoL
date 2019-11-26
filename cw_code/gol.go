@@ -28,6 +28,10 @@ func modPos(d, m int) int {
 	return res
 }
 
+func isEven(p golParams) bool {
+	return p.threads & (p.threads - 1) == 0
+}
+
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
 	smallWorldHeight := endY-startY+2
@@ -38,13 +42,14 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	}
 
 	for {
-
+		//Creates new small world with halos
 		for y := 0; y < smallWorldHeight; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				smallWorld[y][x] = <- in
 			}
 		}
 
+		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				alive := 0
@@ -55,6 +60,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 						}
 					}
 				}
+				//Flips cell or sends back original if no change was made
 				if smallWorld[y][x] != 0 {
 					if alive < 2 || alive > 3 {
 						out <- smallWorld[y][x] ^ 0xFF
@@ -73,7 +79,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	}
 }
 
-func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int, isPause chan bool) {
+func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
 	for {
 		timePrint := time.After(2 * time.Second)
 		select {
@@ -88,7 +94,7 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 					select {
 					case resume := <- keyChan:
 						if resume == 'p' {
-							fmt.Println("Continuing")
+							fmt.Println("Continuing.")
 							x = false
 						}
 					}
@@ -141,6 +147,12 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	//Height the worker will work on
 	workerHeight := p.imageHeight / p.threads
+	workerHeightRemainder := 0
+
+	//Checks if the threads are not a power of 2
+	if !isEven(p) {
+		workerHeightRemainder = p.imageHeight % p.threads
+	}
 
 	//Array of channels intended for workers
 	out := make([]chan byte, p.threads)
@@ -154,13 +166,20 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		in[i] = make(chan byte)
 	}
 
-	for i := 0; i < p.threads; i++ {
-		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+	if isEven(p) {
+		for i := 0; i < p.threads; i++ {
+			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+		}
+	} else {
+		for i := 0; i < p.threads-1; i++ {
+			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+		}
+		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
 	}
 
+
 	turns := 0
-	isPause := make(chan bool)
-	go eventController(keyChan, p, d, world, &turns, isPause)
+	go eventController(keyChan, p, d, world, &turns)
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {

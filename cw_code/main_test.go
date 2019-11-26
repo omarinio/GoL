@@ -127,6 +127,54 @@ func Test(t *testing.T) {
 			},
 		}},
 
+		{"16x16x6-100", args{
+			p: golParams{
+				turns:       100,
+				threads:     6,
+				imageWidth:  16,
+				imageHeight: 16,
+			},
+			expectedAlive: []cell{
+				{x: 12, y: 0},
+				{x: 13, y: 0},
+				{x: 14, y: 0},
+				{x: 13, y: 14},
+				{x: 14, y: 15},
+			},
+		}},
+
+		{"16x16x10-100", args{
+			p: golParams{
+				turns:       100,
+				threads:     10,
+				imageWidth:  16,
+				imageHeight: 16,
+			},
+			expectedAlive: []cell{
+				{x: 12, y: 0},
+				{x: 13, y: 0},
+				{x: 14, y: 0},
+				{x: 13, y: 14},
+				{x: 14, y: 15},
+			},
+		}},
+
+		{"16x16x12-100", args{
+			p: golParams{
+				turns:       100,
+				threads:     12,
+				imageWidth:  16,
+				imageHeight: 16,
+			},
+			expectedAlive: []cell{
+				{x: 12, y: 0},
+				{x: 13, y: 0},
+				{x: 14, y: 0},
+				{x: 13, y: 14},
+				{x: 14, y: 15},
+			},
+		}},
+
 		{"16x16x4-100", args{
 			p: golParams{
 				turns:       100,
