@@ -183,23 +183,53 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
-		//Sends world byte by byte to workers
-		for t := 0; t < p.threads; t++ {
-			for y := 0; y < workerHeight+2; y++ {
-				for x := 0; x < p.imageWidth; x++ {
-					in[t] <- world[modPos(y + (t*(workerHeight)-1), p.imageHeight)][x]
-				}
-			}
-		}
-
-		//Receives world byte by byte from workers
-		for t := 0; t < p.threads; t++ {
-			for y := 0; y < workerHeight; y++ {
-				for x := 0; x < p.imageWidth; x++ {
-					world[y+(t*workerHeight)][x] = <- out[t]
+		//If the amount of threads is a power of 2
+		if isEven(p) {
+			//Sends world byte by byte to workers
+			for t := 0; t < p.threads; t++ {
+				for y := 0; y < workerHeight+2; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
+					}
 				}
 			}
 
+			//Receives world byte by byte from workers
+			for t := 0; t < p.threads; t++ {
+				for y := 0; y < workerHeight; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						world[y+(t*workerHeight)][x] = <-out[t]
+					}
+				}
+			}
+
+			//If the amount of threads is not a power of 2
+		} else {
+			for t := 0; t < p.threads-1; t++ {
+				for y := 0; y < workerHeight+2; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
+					}
+				}
+			}
+			for y:=0; y<workerHeight+workerHeightRemainder+2; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
+				}
+			}
+
+			for t := 0; t < p.threads-1; t++ {
+				for y := 0; y < workerHeight; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						world[y+(t*workerHeight)][x] = <-out[t]
+					}
+				}
+			}
+			for y:=0; y<workerHeight+workerHeightRemainder; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					world[y+((p.threads-1)*workerHeight)][x] = <-out[p.threads-1]
+				}
+			}
 		}
 
 	}
