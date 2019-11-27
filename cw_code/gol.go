@@ -9,6 +9,8 @@ import (
 )
 
 type workerChannel struct {
+	//disToWorker chan byte //world is sent along this channel between worker and distributor
+
 	upperSend chan<-byte //halo for worker above is sent
 	upperRec <-chan byte //halo above is received from worker
 	lowerSend chan<-byte //halo for worker below is sent
@@ -39,7 +41,7 @@ func isEven(p golParams) bool {
 	return p.threads & (p.threads - 1) == 0
 }
 
-func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
+func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc workerChannel) {
 
 	smallWorldHeight := endY-startY+2
 
@@ -59,6 +61,19 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	}
 
 	for {
+		//At beginning of each turn, must send and receive halos
+
+		//Sending halos
+		for halo := 0; halo < p.imageWidth; halo++ {
+			wc.upperSend <- smallWorld[1][halo]
+			wc.lowerSend <- smallWorld[smallWorldHeight-2][halo]
+		}
+
+		//Receiving halos
+		for halo := 0; halo < p.imageWidth; halo++ {
+			smallWorld[0][halo] = <- wc.upperRec
+			smallWorld[smallWorldHeight-1][halo] = <- wc.lowerRec
+		}
 
 		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
@@ -164,6 +179,16 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		workerHeightRemainder = p.imageHeight % p.threads
 	}
 
+	//Channels to send halos to and from worker
+	sendChans := make([]chan<- byte, 2 * p.threads)
+	recChans := make([]<-chan byte, 2 * p.threads)
+
+	for i:=0; i < 2 * p.threads; i++ {
+		c := make(chan byte, p.imageWidth)
+		recChans[i] = c
+		sendChans[i] = c
+	}
+
 	//Array of channels intended for workers
 	out := make([]chan byte, p.threads)
 	in := make([]chan byte, p.threads)
@@ -178,13 +203,26 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	if isEven(p) {
 		for i := 0; i < p.threads; i++ {
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+			var wc workerChannel
+
+			wc.upperSend = sendChans[i*2]
+			wc.upperRec = recChans[modPos((i * 2) - 1, 2 * p.threads)]
+			wc.lowerSend = sendChans[(i*2) + 1]
+			wc.lowerRec = recChans[modPos((i + 1) * 2, 2 * p.threads)]
+
+			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
+
+			for y := 0; y < workerHeight+2; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					in[i] <- world[modPos(y+(i*(workerHeight)-1), p.imageHeight)][x]
+				}
+			}
 		}
 	} else {
 		for i := 0; i < p.threads-1; i++ {
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
 		}
-		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
+		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1], wc)
 	}
 
 	turns := 0
