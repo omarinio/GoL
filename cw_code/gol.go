@@ -89,20 +89,27 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 				//Flips cell or sends back original if no change was made
 				if smallWorld[y][x] != 0 {
 					if alive < 2 || alive > 3 {
-						out <- smallWorld[y][x] ^ 0xFF
+						tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
 					} else {
-						out <- smallWorld[y][x]
+						tempSmallWorld[y][x] = smallWorld[y][x]
 					}
 				} else {
 					if alive == 3 {
-						out <- smallWorld[y][x] ^ 0xFF
+						tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
 					} else {
-						out <- smallWorld[y][x]
+						tempSmallWorld[y][x] = smallWorld[y][x]
 					}
 				}
 			}
 		}
+
+		for i := range smallWorld {
+			smallWorld[i] = make([]byte, len(tempSmallWorld[i]))
+			copy(smallWorld[i], tempSmallWorld[i])
+		}
 	}
+
+
 }
 
 func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
