@@ -8,13 +8,20 @@ import (
 	"time"
 )
 
+type workerChannel struct {
+	upperSend chan<-byte //halo for worker above is sent
+	upperRec <-chan byte //halo above is received from worker
+	lowerSend chan<-byte //halo for worker below is sent
+	lowerRec <-chan byte //halo below is received from worker
+}
+
 func outputWorld(p golParams, d distributorChans, world [][]byte, turns int) {
 	d.io.command <- ioOutput
 	d.io.filename <- strings.Join([]string{strconv.Itoa(p.imageWidth), strconv.Itoa(p.imageHeight) + "-" + strconv.Itoa(turns)}, "x")
 
 	// Sends the world to the pgm channel
 	for y := range world {
-		for x := range world[y]{
+		for x := range world[y] {
 			d.io.outputVal <- world[y][x]
 		}
 	}
@@ -37,17 +44,21 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 	smallWorldHeight := endY-startY+2
 
 	smallWorld := make([][]byte, smallWorldHeight)
+	tempSmallWorld := make([][]byte, smallWorldHeight)
+
 	for i := range smallWorld {
 		smallWorld[i] = make([]byte, p.imageWidth)
+		tempSmallWorld[i] = make([]byte, p.imageWidth)
+	}
+
+	//Creates new small world with halos
+	for y := 0; y < smallWorldHeight; y++ {
+		for x := 0; x < p.imageWidth; x++ {
+			smallWorld[y][x] = <- in
+		}
 	}
 
 	for {
-		//Creates new small world with halos
-		for y := 0; y < smallWorldHeight; y++ {
-			for x := 0; x < p.imageWidth; x++ {
-				smallWorld[y][x] = <- in
-			}
-		}
 
 		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
@@ -120,7 +131,6 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 	}
 }
 
-
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-chan rune) {
 
@@ -176,7 +186,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		}
 		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
 	}
-
 
 	turns := 0
 	go eventController(keyChan, p, d, world, &turns)
