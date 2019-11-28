@@ -37,10 +37,6 @@ func modPos(d, m int) int {
 	return res
 }
 
-func isEven(p golParams) bool {
-	return p.threads & (p.threads - 1) == 0
-}
-
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc workerChannel) {
 
 	smallWorldHeight := endY-startY+2
@@ -109,7 +105,6 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 			copy(smallWorld[i], tempSmallWorld[i])
 		}
 	}
-
 }
 
 func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
@@ -182,9 +177,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	workerHeightRemainder := 0
 
 	//Checks if the threads are not a power of 2
-	if !isEven(p) {
-		workerHeightRemainder = p.imageHeight % p.threads
-	}
+	workerHeightRemainder = p.imageHeight % p.threads
 
 	//Channels to send halos to and from worker
 	sendChans := make([]chan<- byte, 2 * p.threads)
@@ -208,84 +201,70 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		in[i] = make(chan byte)
 	}
 
-	if isEven(p) {
-		for i := 0; i < p.threads; i++ {
-			var wc workerChannel
+	for i := 0; i < p.threads-1; i++ {
+		var wc workerChannel
 
-			wc.upperSend = sendChans[i*2]
-			wc.upperRec = recChans[modPos((i * 2) - 1, 2 * p.threads)]
-			wc.lowerSend = sendChans[(i*2) + 1]
-			wc.lowerRec = recChans[modPos((i + 1) * 2, 2 * p.threads)]
+		wc.upperSend = sendChans[i*2]
+		wc.upperRec = recChans[modPos((i*2)-1, 2*p.threads)]
+		wc.lowerSend = sendChans[(i*2)+1]
+		wc.lowerRec = recChans[modPos((i+1)*2, 2*p.threads)]
 
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
+		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
 
-			for y := 0; y < workerHeight+2; y++ {
-				for x := 0; x < p.imageWidth; x++ {
-					in[i] <- world[modPos(y+(i*(workerHeight)-1), p.imageHeight)][x]
-				}
+		for y := 0; y < workerHeight+2; y++ {
+			for x := 0; x < p.imageWidth; x++ {
+				in[i] <- world[modPos(y+(i*(workerHeight)-1), p.imageHeight)][x]
 			}
 		}
-	} else {
-		for i := 0; i < p.threads-1; i++ {
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
-		}
-		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1], wc)
 	}
+
+	var wc2 workerChannel
+
+	wc2.upperSend = sendChans[(p.threads-1)*2]
+	wc2.upperRec = recChans[modPos(((p.threads-1)*2)-1, 2*p.threads)]
+	wc2.lowerSend = sendChans[((p.threads-1)*2)+1]
+	wc2.lowerRec = recChans[modPos(((p.threads-1)+1)*2, 2*p.threads)]
+
+	go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1], wc2)
+
+	for y := 0; y < workerHeight+2; y++ {
+		for x := 0; x < p.imageWidth; x++ {
+			in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
+		}
+	}
+
 
 	turns := 0
 	go eventController(keyChan, p, d, world, &turns)
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
-		//If the amount of threads is a power of 2
-		if isEven(p) {
-			//Sends world byte by byte to workers
-			for t := 0; t < p.threads; t++ {
-				for y := 0; y < workerHeight+2; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
-					}
-				}
-			}
-
-			//Receives world byte by byte from workers
-			for t := 0; t < p.threads; t++ {
-				for y := 0; y < workerHeight; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						world[y+(t*workerHeight)][x] = <-out[t]
-					}
-				}
-			}
-
-			//If the amount of threads is not a power of 2
-		} else {
-			for t := 0; t < p.threads-1; t++ {
-				for y := 0; y < workerHeight+2; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
-					}
-				}
-			}
-			for y:=0; y<workerHeight+workerHeightRemainder+2; y++ {
+		//Sends world byte by byte to workers
+		for t := 0; t < p.threads-1; t++ {
+			for y := 0; y < workerHeight+2; y++ {
 				for x := 0; x < p.imageWidth; x++ {
-					in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
-				}
-			}
-
-			for t := 0; t < p.threads-1; t++ {
-				for y := 0; y < workerHeight; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						world[y+(t*workerHeight)][x] = <-out[t]
-					}
-				}
-			}
-			for y:=0; y<workerHeight+workerHeightRemainder; y++ {
-				for x := 0; x < p.imageWidth; x++ {
-					world[y+((p.threads-1)*workerHeight)][x] = <-out[p.threads-1]
+					in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
 				}
 			}
 		}
-
+		for y:=0; y<workerHeight+workerHeightRemainder+2; y++ {
+			for x := 0; x < p.imageWidth; x++ {
+				in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
+			}
+		}
+		//Receives world byte by byte from workers
+		for t := 0; t < p.threads-1; t++ {
+			for y := 0; y < workerHeight; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					world[y+(t*workerHeight)][x] = <-out[t]
+				}
+			}
+		}
+		for y:=0; y<workerHeight+workerHeightRemainder; y++ {
+			for x := 0; x < p.imageWidth; x++ {
+				world[y+((p.threads-1)*workerHeight)][x] = <-out[p.threads-1]
+			}
+		}
 	}
 
 	outputWorld(p, d, world, p.turns)
