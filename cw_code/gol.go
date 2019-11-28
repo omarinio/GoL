@@ -28,10 +28,6 @@ func modPos(d, m int) int {
 	return res
 }
 
-func isEven(p golParams) bool {
-	return p.threads & (p.threads - 1) == 0
-}
-
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 
 	smallWorldHeight := endY-startY+2
@@ -150,9 +146,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	workerHeightRemainder := 0
 
 	//Checks if the threads are not a power of 2
-	if !isEven(p) {
-		workerHeightRemainder = p.imageHeight % p.threads
-	}
+	workerHeightRemainder = p.imageHeight % p.threads
 
 	//Array of channels intended for workers
 	out := make([]chan byte, p.threads)
@@ -166,16 +160,10 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		in[i] = make(chan byte)
 	}
 
-	if isEven(p) {
-		for i := 0; i < p.threads; i++ {
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
-		}
-	} else {
-		for i := 0; i < p.threads-1; i++ {
-			go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
-		}
-		go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
+	for i := 0; i < p.threads-1; i++ {
+		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
 	}
+	go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
 
 
 	turns := 0
@@ -183,28 +171,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
-		//If the amount of threads is a power of 2
-		if isEven(p) {
 			//Sends world byte by byte to workers
-			for t := 0; t < p.threads; t++ {
-				for y := 0; y < workerHeight+2; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						in[t] <- world[modPos(y+(t*(workerHeight)-1), p.imageHeight)][x]
-					}
-				}
-			}
-
-			//Receives world byte by byte from workers
-			for t := 0; t < p.threads; t++ {
-				for y := 0; y < workerHeight; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						world[y+(t*workerHeight)][x] = <-out[t]
-					}
-				}
-			}
-
-			//If the amount of threads is not a power of 2
-		} else {
 			for t := 0; t < p.threads-1; t++ {
 				for y := 0; y < workerHeight+2; y++ {
 					for x := 0; x < p.imageWidth; x++ {
@@ -217,7 +184,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 					in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
 				}
 			}
-
+			//Receives world byte by byte from workers
 			for t := 0; t < p.threads-1; t++ {
 				for y := 0; y < workerHeight; y++ {
 					for x := 0; x < p.imageWidth; x++ {
@@ -230,7 +197,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 					world[y+((p.threads-1)*workerHeight)][x] = <-out[p.threads-1]
 				}
 			}
-		}
 
 	}
 
