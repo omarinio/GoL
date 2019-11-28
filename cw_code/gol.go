@@ -49,13 +49,11 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				alive := 0
-				for i := -1; i <= 1; i++ {
-					for j := -1; j <= 1; j++ {
-						if (i != 0 || j != 0) && smallWorld[((y+i)+smallWorldHeight)%smallWorldHeight][((x+j)+p.imageWidth)%p.imageWidth] != 0 {
-							alive++
-						}
-					}
-				}
+				alive = int(smallWorld[modPos((y-1) ,smallWorldHeight)][modPos((x-1) ,p.imageWidth)]) + int(smallWorld[modPos((y-1), smallWorldHeight)][modPos((x), p.imageWidth)]) + int(smallWorld[modPos((y-1), smallWorldHeight)][modPos((x+1), p.imageWidth)]) +
+					int(smallWorld[modPos((y), smallWorldHeight)][modPos((x-1), p.imageWidth)])                        +                              int(smallWorld[(y) % smallWorldHeight][(x+1) % p.imageWidth])           +
+					int(smallWorld[modPos((y+1), smallWorldHeight)][modPos((x-1), p.imageWidth)]) +     int(smallWorld[(y+1) % smallWorldHeight][(x) % p.imageWidth])     + int(smallWorld[(y+1) % smallWorldHeight][(x+1) % p.imageWidth])
+				alive /= 255
+
 				//Flips cell or sends back original if no change was made
 				if smallWorld[y][x] != 0 {
 					if alive < 2 || alive > 3 {
