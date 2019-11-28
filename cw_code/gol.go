@@ -103,12 +103,12 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 			}
 		}
 
+		//Copy temp world into real world
 		for i := range smallWorld {
 			smallWorld[i] = make([]byte, len(tempSmallWorld[i]))
 			copy(smallWorld[i], tempSmallWorld[i])
 		}
 	}
-
 
 }
 
@@ -191,7 +191,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	recChans := make([]<-chan byte, 2 * p.threads)
 
 	for i:=0; i < 2 * p.threads; i++ {
-		c := make(chan byte, p.imageWidth)
+		c := make(chan byte, 2 * p.imageWidth)
 		recChans[i] = c
 		sendChans[i] = c
 	}
