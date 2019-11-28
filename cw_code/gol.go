@@ -59,13 +59,13 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 	for {
 		//At beginning of each turn, must send and receive halos
 
-		//Sending halos
+		//Sending halos (move to bottom of worker and send to distributor)
 		for halo := 0; halo < p.imageWidth; halo++ {
 			wc.upperSend <- smallWorld[1][halo]
 			wc.lowerSend <- smallWorld[smallWorldHeight-2][halo]
 		}
 
-		//Receiving halos
+		//Receiving halos (receive from distributor)
 		for halo := 0; halo < p.imageWidth; halo++ {
 			smallWorld[0][halo] = <- wc.upperRec
 			smallWorld[smallWorldHeight-1][halo] = <- wc.lowerRec
@@ -232,7 +232,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 			in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
 		}
 	}
-
 
 	turns := 0
 	go eventController(keyChan, p, d, world, &turns)
