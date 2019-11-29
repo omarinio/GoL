@@ -41,6 +41,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 
 	smallWorldHeight := endY-startY+2
 
+	//Initialise small world as well as temp small world
 	smallWorld := make([][]byte, smallWorldHeight)
 	tempSmallWorld := make([][]byte, smallWorldHeight)
 
@@ -75,6 +76,8 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				alive := 0
+				//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
+				//and then dividing it by 255 to get the number of alive cells
 				alive = int(smallWorld[modPos(y-1 ,smallWorldHeight)][modPos(x-1 ,p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x, p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x+1, p.imageWidth)]) +
 					int(smallWorld[modPos(y, smallWorldHeight)][modPos(x-1, p.imageWidth)])                        +                              int(smallWorld[(y) % smallWorldHeight][(x+1) % p.imageWidth])           +
 					int(smallWorld[modPos(y+1, smallWorldHeight)][modPos(x-1, p.imageWidth)]) +     int(smallWorld[(y+1) % smallWorldHeight][(x) % p.imageWidth])     + int(smallWorld[(y+1) % smallWorldHeight][(x+1) % p.imageWidth])
@@ -153,33 +156,28 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	out := make([]chan byte, p.threads)
 	in := make([]chan byte, p.threads)
 
-	for i:=0; i < 2 * p.threads; i++ {
+	//Create receive and send channel
+	for i := range sendChans {
 		c := make(chan byte, 2 * p.imageWidth)
 		recChans[i] = c
 		sendChans[i] = c
 	}
 
+	//Create in, out and parity bit channels
 	for i := range out {
 		out[i] = make(chan byte, p.imageWidth)
-	}
-
-	for i := range in {
 		in[i] = make(chan byte, p.imageWidth)
+		parityBitChans[i] = make(chan bool, p.imageWidth)
 	}
 
-	for i := range parityBitChans {
-		parityBitChans[i] = make(chan bool)
-	}
-
+	//For each worker assign correct channels (upper send halo of one worker is lower receive halo of another for example)
 	for i := 0; i < p.threads-1; i++ {
 		var wc workerChannel
-
 		wc.upperSend = sendChans[i*2]
 		wc.upperRec = recChans[modPos((i*2)-1, 2*p.threads)]
 		wc.lowerSend = sendChans[(i*2)+1]
 		wc.lowerRec = recChans[modPos((i+1)*2, 2*p.threads)]
 		wc.parityBit = parityBitChans[i]
-
 
 		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
 
@@ -189,9 +187,8 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 			}
 		}
 	}
-
+	//Spare worker that takes in the remainder if channels are not a power of 2
 	var wc2 workerChannel
-
 	wc2.upperSend = sendChans[(p.threads-1)*2]
 	wc2.upperRec = recChans[modPos(((p.threads-1)*2)-1, 2*p.threads)]
 	wc2.lowerSend = sendChans[((p.threads-1)*2)+1]
@@ -207,19 +204,19 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	}
 
 	turns := 0
-	//go eventController(keyChan, p, d, world, &turns)
 	timeAfter := time.NewTicker(time.Second * 2)
 
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
 		select {
-		case <-timeAfter.C:
+		case <-timeAfter.C: //After 2 seconds
+			//Notify the workers to synchronise
 			for _, parityBitChan := range parityBitChans {
 				parityBitChan <- true
 			}
 
 			alive := 0
-
+			//Calculate how many alive cells there are and then divide by 255
 			for t := 0; t < p.threads-1; t++ {
 				for y := 0; y < workerHeight; y++ {
 					for x := 0; x < p.imageWidth; x++ {
@@ -232,18 +229,17 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 					alive += int(<-out[p.threads-1])
 				}
 			}
-
 			alive = alive / 255
-
 			fmt.Println("Alive cells: " + strconv.Itoa(alive))
 
 		case i := <-keyChan:
 			if i == 's' {
+				//Notify the workers to synchronise
 				for _, parityBitChan := range parityBitChans {
 					parityBitChan <- true
 				}
 
-				for t := 0; t < p.threads; t++ {
+				for t := 0; t < p.threads-1; t++ {
 					for y := 0; y < workerHeight; y++ {
 						for x := 0; x < p.imageWidth; x++ {
 							world[y+(t*workerHeight)][x] =<- out[t]
@@ -277,7 +273,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 					parityBitChan <- true
 				}
 
-				for t := 0; t < p.threads; t++ {
+				for t := 0; t < p.threads-1; t++ {
 					for y := 0; y < workerHeight; y++ {
 						for x := 0; x < p.imageWidth; x++ {
 							world[y+(t*workerHeight)][x] =<- out[t]
