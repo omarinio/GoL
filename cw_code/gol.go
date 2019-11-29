@@ -176,16 +176,16 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	//Create receive and send channel
 	for i := range sendChans {
-		c := make(chan byte, 2 * p.imageWidth)
-		recChans[i] = c
-		sendChans[i] = c
+		halo := make(chan byte, 2 * p.imageWidth)
+		recChans[i] = halo
+		sendChans[i] = halo
 	}
 
 	//Create in, out and parity bit channels
 	for i := range out {
 		out[i] = make(chan byte, p.imageWidth)
 		in[i] = make(chan byte, p.imageWidth)
-		parityBitChans[i] = make(chan bool)
+		parityBitChans[i] = make(chan bool, p.threads)
 		nextTurns[i] = make(chan bool)
 	}
 
