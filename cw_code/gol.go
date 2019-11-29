@@ -229,29 +229,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	for turns = 0; turns < p.turns; turns++ {
 		//Event handler select statement
 		select {
-		case <-timeAfter.C: //After 2 seconds
-			//Notify the workers to synchronise
-			for _, parityBitChan := range parityBitChans {
-				parityBitChan <- true
-			}
-
-			alive := 0
-			//Calculate how many alive cells there are and then divide by 255
-			for t := 0; t < p.threads-1; t++ {
-				for y := 0; y < workerHeight; y++ {
-					for x := 0; x < p.imageWidth; x++ {
-						alive += int(<-out[t])
-					}
-				}
-			}
-			for y := 0; y < workerHeight+workerHeightRemainder; y++ {
-				for x := 0; x < p.imageWidth; x++ {
-					alive += int(<-out[p.threads-1])
-				}
-			}
-			alive = alive / 255
-			fmt.Println("Alive cells: " + strconv.Itoa(alive))
-
 		case i := <-keyChan:
 			if i == 's' {
 				//Notify the workers to synchronise
@@ -313,7 +290,30 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 				StopControlServer()
 				os.Exit(0)
 			}
-			//Default needed as otherwise game cannot proceed until button is pressed
+		case <-timeAfter.C: //After 2 seconds
+			//Notify the workers to synchronise
+			for _, parityBitChan := range parityBitChans {
+				parityBitChan <- true
+			}
+
+			alive := 0
+			//Calculate how many alive cells there are and then divide by 255
+			for t := 0; t < p.threads-1; t++ {
+				for y := 0; y < workerHeight; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						alive += int(<-out[t])
+					}
+				}
+			}
+			for y := 0; y < workerHeight+workerHeightRemainder; y++ {
+				for x := 0; x < p.imageWidth; x++ {
+					alive += int(<-out[p.threads-1])
+				}
+			}
+			alive = alive / 255
+			fmt.Println("Alive cells: " + strconv.Itoa(alive))
+
+		//Default needed as otherwise game cannot proceed until button is pressed
 			default:
 		}
 		//Each worker is sent a true bool to notify it that it can proceed with the following turn
