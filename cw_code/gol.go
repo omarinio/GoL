@@ -57,9 +57,9 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 	}
 
 	for turn:= 0; turn < p.turns; turn++ {
-		//At beginning of each turn, must send and receive halos
 
-		//Sending halos (move to bottom of worker and send to distributor)
+		//At beginning of each turn, must send and receive halos
+		//Sending halos
 		for halo := 0; halo < p.imageWidth; halo++ {
 			wc.upperSend <- smallWorld[1][halo]
 			wc.lowerSend <- smallWorld[smallWorldHeight-2][halo]
@@ -75,9 +75,9 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
 				alive := 0
-				alive = int(smallWorld[modPos((y-1) ,smallWorldHeight)][modPos((x-1) ,p.imageWidth)]) + int(smallWorld[modPos((y-1), smallWorldHeight)][modPos((x), p.imageWidth)]) + int(smallWorld[modPos((y-1), smallWorldHeight)][modPos((x+1), p.imageWidth)]) +
-					int(smallWorld[modPos((y), smallWorldHeight)][modPos((x-1), p.imageWidth)])                        +                              int(smallWorld[(y) % smallWorldHeight][(x+1) % p.imageWidth])           +
-					int(smallWorld[modPos((y+1), smallWorldHeight)][modPos((x-1), p.imageWidth)]) +     int(smallWorld[(y+1) % smallWorldHeight][(x) % p.imageWidth])     + int(smallWorld[(y+1) % smallWorldHeight][(x+1) % p.imageWidth])
+				alive = int(smallWorld[modPos(y-1 ,smallWorldHeight)][modPos(x-1 ,p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x, p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x+1, p.imageWidth)]) +
+					int(smallWorld[modPos(y, smallWorldHeight)][modPos(x-1, p.imageWidth)])                        +                              int(smallWorld[(y) % smallWorldHeight][(x+1) % p.imageWidth])           +
+					int(smallWorld[modPos(y+1, smallWorldHeight)][modPos(x-1, p.imageWidth)]) +     int(smallWorld[(y+1) % smallWorldHeight][(x) % p.imageWidth])     + int(smallWorld[(y+1) % smallWorldHeight][(x+1) % p.imageWidth])
 				alive = alive/255
 
 				//Flips cell or sends back original if no change was made
@@ -104,6 +104,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 		}
 	}
 
+	//Sends the world back once all turns are finished
 	for y := 1; y < endY-startY+1; y++ {
 		for x := 0; x < p.imageWidth; x++ {
 			out <- smallWorld[y][x]
@@ -111,47 +112,6 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 	}
 
 }
-
-//func eventController(keyChan <- chan rune, p golParams, d distributorChans, world[][]byte, turns *int) {
-//	for {
-//		timePrint := time.After(2 * time.Second)
-//		select {
-//		case i := <-keyChan:
-//			if i == 's' {
-//				outputWorld(p, d, world, *turns)
-//			} else if i == 'p' {
-//				turns2 := *turns
-//				fmt.Println("Game paused, current turn: ", strconv.Itoa(turns2))
-//
-//				for x:= true; x == true; {
-//					select {
-//					case resume := <- keyChan:
-//						if resume == 'p' {
-//							fmt.Println("Continuing.")
-//							x = false
-//						}
-//					}
-//				}
-//
-//			} else if i == 'q' {
-//				outputWorld(p, d, world, *turns)
-//				StopControlServer()
-//				os.Exit(0)
-//			}
-//		case <- timePrint:
-//			count := 0
-//			for y := 0; y < p.imageHeight; y++ {
-//				for x := 0; x < p.imageWidth; x++ {
-//					if world[y][x] != 0 {
-//						count++
-//					}
-//				}
-//			}
-//			fmt.Println("Alive cells: " + strconv.Itoa(count))
-//
-//		}
-//	}
-//}
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-chan rune) {
@@ -189,15 +149,15 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	recChans := make([]<-chan byte, 2 * p.threads)
 	parityBitChans := make([]chan bool, p.threads)
 
+	//Array of channels intended for workers
+	out := make([]chan byte, p.threads)
+	in := make([]chan byte, p.threads)
+
 	for i:=0; i < 2 * p.threads; i++ {
 		c := make(chan byte, 2 * p.imageWidth)
 		recChans[i] = c
 		sendChans[i] = c
 	}
-
-	//Array of channels intended for workers
-	out := make([]chan byte, p.threads)
-	in := make([]chan byte, p.threads)
 
 	for i := range out {
 		out[i] = make(chan byte, p.imageWidth)
@@ -207,16 +167,19 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		in[i] = make(chan byte, p.imageWidth)
 	}
 
+	for i := range parityBitChans {
+		parityBitChans[i] = make(chan bool)
+	}
+
 	for i := 0; i < p.threads-1; i++ {
 		var wc workerChannel
-
-		parityBitChans[i] = make(chan bool)
 
 		wc.upperSend = sendChans[i*2]
 		wc.upperRec = recChans[modPos((i*2)-1, 2*p.threads)]
 		wc.lowerSend = sendChans[(i*2)+1]
 		wc.lowerRec = recChans[modPos((i+1)*2, 2*p.threads)]
 		wc.parityBit = parityBitChans[i]
+
 
 		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i], wc)
 
@@ -237,7 +200,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1], wc2)
 
-	for y := 0; y < workerHeight+2; y++ {
+	for y := 0; y < workerHeight+workerHeightRemainder+2; y++ {
 		for x := 0; x < p.imageWidth; x++ {
 			in[p.threads-1] <- world[modPos(y+((p.threads-1)*(workerHeight)-1), p.imageHeight)][x]
 		}
@@ -245,12 +208,12 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	turns := 0
 	//go eventController(keyChan, p, d, world, &turns)
-	timeAfter := time.After(time.Second * 2)
-	
+	timeAfter := time.NewTicker(time.Second * 2)
+
 	// Calculate the new state of Game of Life after the given number of turns.
 	for turns = 0; turns < p.turns; turns++ {
 		select {
-		case <-timeAfter:
+		case <-timeAfter.C:
 			for _, parityBitChan := range parityBitChans {
 				parityBitChan <- true
 			}
@@ -322,17 +285,24 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 					}
 				}
 
+				for y := 0; y < workerHeight+workerHeightRemainder; y++ {
+					for x := 0; x < p.imageWidth; x++ {
+						world[y+((p.threads-1)*workerHeight)][x] = <-out[p.threads-1]
+					}
+				}
+
 				outputWorld(p, d, world, turns)
 				StopControlServer()
 				os.Exit(0)
 			}
+			default:
 		}
 	}
 
-	for t := 0; t < p.threads; t++ {
+	for t := 0; t < p.threads-1; t++ {
 		for y := 0; y < workerHeight; y++ {
 			for x := 0; x < p.imageWidth; x++ {
-				world[y+(t*workerHeight)][x] =<- out[t]
+				world[y+(t*workerHeight)][x] = <- out[t]
 			}
 		}
 	}
