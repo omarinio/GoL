@@ -15,9 +15,9 @@ type ioCommand uint8
 
 // This is a way of creating enums in Go.
 // It will evaluate to:
-//		ioOutput 	= 0
-//		ioInput 	= 1
-//		ioCheckIdle = 2
+//      ioOutput    = 0
+//      ioInput     = 1
+//      ioCheckIdle = 2
 const (
 	ioOutput ioCommand = iota
 	ioInput
@@ -54,6 +54,7 @@ type ioToDistributor struct {
 // distributorChans stores all the chans that the distributor goroutine will use.
 type distributorChans struct {
 	io distributorToIo
+	key <- chan rune
 }
 
 // ioChans stores all the chans that the io goroutine will use.
@@ -68,6 +69,7 @@ type ioChans struct {
 func gameOfLife(p golParams, keyChan <-chan rune) []cell {
 	var dChans distributorChans
 	var ioChans ioChans
+	dChans.key = keyChan
 
 	ioCommand := make(chan ioCommand)
 	dChans.io.command = ioCommand
@@ -89,9 +91,23 @@ func gameOfLife(p golParams, keyChan <-chan rune) []cell {
 	dChans.io.outputVal = outputVal
 	ioChans.distributor.outputVal = outputVal
 
+
+
 	aliveCells := make(chan []cell)
 
-	go distributor(p, dChans, aliveCells, keyChan)
+	//creating worker channels and running them concurrently
+	threadHeight := p.imageHeight/p.threads
+	in := make([]chan byte, p.threads)
+	out := make([] chan byte, p.threads)
+	for i := 0; i<p.threads; i++{
+		in[i] = make(chan byte)
+		out[i] = make(chan byte)
+	}
+	for i := 0; i< p.threads; i++{
+		go worker(threadHeight+2, in[i], out[i], p)
+	}
+	go distributor(p, dChans, aliveCells, in, out)
+	// Reads in board from file, then writes image to disk.
 	go pgmIo(p, ioChans)
 
 	alive := <-aliveCells
@@ -106,28 +122,28 @@ func main() {
 	flag.IntVar(
 		&params.threads,
 		"t",
-		4,
+		8,
 		"Specify the number of worker threads to use. Defaults to 8.")
 
 	flag.IntVar(
 		&params.imageWidth,
 		"w",
-		256,
+		512,
 		"Specify the width of the image. Defaults to 512.")
 
 	flag.IntVar(
 		&params.imageHeight,
 		"h",
-		256,
+		512,
 		"Specify the height of the image. Defaults to 512.")
 
 	flag.Parse()
 
-	params.turns = 10000
+	params.turns = 100
 
 	startControlServer(params)
-	input := make(chan rune)
-	go getKeyboardCommand(input)
-	gameOfLife(params, input)
+	keyChan := make(chan rune)
+	go getKeyboardCommand(keyChan)
+	gameOfLife(params, keyChan)
 	StopControlServer()
 }
