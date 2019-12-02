@@ -186,7 +186,7 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 		out[i] = make(chan byte, p.imageWidth)
 		in[i] = make(chan byte, p.imageWidth)
 		parityBitChans[i] = make(chan bool, p.threads)
-		nextTurns[i] = make(chan bool)
+		nextTurns[i] = make(chan bool, p.threads)
 	}
 
 	//For each worker assign correct channels (upper send halo of one worker is lower receive halo of another for example)
