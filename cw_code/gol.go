@@ -151,11 +151,11 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 	in := make([]chan byte, p.threads)
 
 	for i := range out {
-		out[i] = make(chan byte, p.imageWidth)
+		out[i] = make(chan byte, p.imageHeight)
 	}
 
 	for i := range in {
-		in[i] = make(chan byte, p.imageWidth)
+		in[i] = make(chan byte, p.imageHeight)
 	}
 
 	for i := 0; i < p.threads-1; i++ {
