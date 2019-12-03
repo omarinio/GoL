@@ -116,7 +116,7 @@ func eventController(keyChan <- chan rune, p golParams, d distributorChans, worl
 
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-chan rune) {
+func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-chan rune, in, out []chan byte) {
 
 	// Create the 2D slice to store the world.
 	world := make([][]byte, p.imageHeight)
@@ -145,24 +145,6 @@ func distributor(p golParams, d distributorChans, alive chan []cell, keyChan <-c
 
 	//Checks if the threads are not a power of 2
 	workerHeightRemainder = p.imageHeight % p.threads
-
-	//Array of channels intended for workers
-	out := make([]chan byte, p.threads)
-	in := make([]chan byte, p.threads)
-
-	for i := range out {
-		out[i] = make(chan byte, p.imageHeight)
-	}
-
-	for i := range in {
-		in[i] = make(chan byte, p.imageHeight)
-	}
-
-	for i := 0; i < p.threads-1; i++ {
-		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
-	}
-	go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
-
 
 	turns := 0
 	go eventController(keyChan, p, d, world, &turns)

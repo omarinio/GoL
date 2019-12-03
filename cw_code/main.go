@@ -91,7 +91,32 @@ func gameOfLife(p golParams, keyChan <-chan rune) []cell {
 
 	aliveCells := make(chan []cell)
 
-	go distributor(p, dChans, aliveCells, keyChan)
+	//Height the worker will work on
+	workerHeight := p.imageHeight / p.threads
+	workerHeightRemainder := 0
+
+	//Checks if the threads are not a power of 2
+	workerHeightRemainder = p.imageHeight % p.threads
+
+	//Array of channels intended for workers
+	out := make([]chan byte, p.threads)
+	in := make([]chan byte, p.threads)
+
+	for i := range out {
+		out[i] = make(chan byte, p.imageHeight)
+	}
+
+	for i := range in {
+		in[i] = make(chan byte, p.imageHeight)
+	}
+
+	for i := 0; i < p.threads-1; i++ {
+		go worker(i*workerHeight, (i+1)*workerHeight, p, out[i], in[i])
+	}
+	go worker((p.threads-1)*workerHeight, ((p.threads)*workerHeight)+workerHeightRemainder, p, out[p.threads-1], in[p.threads-1])
+
+
+	go distributor(p, dChans, aliveCells, keyChan, in, out)
 	go pgmIo(p, ioChans)
 
 	alive := <-aliveCells
