@@ -21,11 +21,10 @@ func outputWorld(p golParams, d distributorChans, world [][]byte, turns int) {
 }
 
 func modPos(d, m int) int {
-	var res = d % m
-	if (res < 0 && m > 0) || (res > 0 && m < 0) {
-		return res + m
+	if d >= 0 {
+		return d % m
 	}
-	return res
+	return d + m
 }
 
 func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte) {
