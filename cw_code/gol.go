@@ -59,8 +59,8 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 	for turn:= 0; turn < p.turns; turn++ {
 
 		synchroniser := true
-		for synchroniser{
-			select{
+		for synchroniser {
+			select {
 			case _ = <-wc.parityBit:
 				//If parity bit is received (signalling that image needs to be sent back), each image is sent back once
 				//each worker has finished their turn, before starting the new one
@@ -84,19 +84,75 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 
 		//Receiving halos
 		for halo := 0; halo < p.imageWidth; halo++ {
-			smallWorld[0][halo] = <- wc.upperRec
-			smallWorld[smallWorldHeight-1][halo] = <- wc.lowerRec
+			smallWorld[0][halo] = <-wc.upperRec
+			smallWorld[smallWorldHeight-1][halo] = <-wc.lowerRec
 		}
+
+		//Calculate edge cases (right and left column) as we know they will wrap around
+		for y := 1; y < endY-startY+1; y++ {
+			//left column
+			x := 0
+			alive := 0
+			//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
+			//and then dividing it by 255 to get the number of alive cells
+			alive = int(smallWorld[y-1][p.imageWidth-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][x+1]) +
+				int(smallWorld[y][p.imageWidth-1]) + int(smallWorld[y][x+1]) +
+				int(smallWorld[y+1][p.imageWidth-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][x+1])
+			alive = alive / 255
+			//Flips cell or sends back original if no change was made
+			if smallWorld[y][x] != 0 {
+				if alive < 2 || alive > 3 {
+					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+				} else {
+					tempSmallWorld[y][x] = smallWorld[y][x]
+				}
+			} else {
+				if alive == 3 {
+					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+				} else {
+					tempSmallWorld[y][x] = smallWorld[y][x]
+				}
+			}
+		}
+
+		for y := 1; y < endY-startY+1; y++ {
+			//right columns
+			x := p.imageWidth - 1
+			alive := 0
+			//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
+			//and then dividing it by 255 to get the number of alive cells
+			alive = int(smallWorld[y-1][x-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][0]) +
+				int(smallWorld[y][x-1]) + int(smallWorld[y][0]) +
+				int(smallWorld[y+1][x-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][0])
+			alive = alive / 255
+
+			//Flips cell or sends back original if no change was made
+			if smallWorld[y][x] != 0 {
+				if alive < 2 || alive > 3 {
+					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+				} else {
+					tempSmallWorld[y][x] = smallWorld[y][x]
+				}
+			} else {
+				if alive == 3 {
+					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+				} else {
+					tempSmallWorld[y][x] = smallWorld[y][x]
+				}
+			}
+		}
+
+
 
 		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
-			for x := 0; x < p.imageWidth; x++ {
+			for x := 1; x < p.imageWidth-1; x++ {
 				alive := 0
 				//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
 				//and then dividing it by 255 to get the number of alive cells
-				alive = int(smallWorld[modPos(y-1 ,smallWorldHeight)][modPos(x-1 ,p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x, p.imageWidth)]) + int(smallWorld[modPos(y-1, smallWorldHeight)][modPos(x+1, p.imageWidth)]) +
-					int(smallWorld[modPos(y, smallWorldHeight)][modPos(x-1, p.imageWidth)])                        +                              int(smallWorld[(y) % smallWorldHeight][(x+1) % p.imageWidth])           +
-					int(smallWorld[modPos(y+1, smallWorldHeight)][modPos(x-1, p.imageWidth)]) +     int(smallWorld[(y+1) % smallWorldHeight][(x) % p.imageWidth])     + int(smallWorld[(y+1) % smallWorldHeight][(x+1) % p.imageWidth])
+				alive = int(smallWorld[y-1][x-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][x+1]) +
+					    int(smallWorld[y][x-1])                +              int(smallWorld[y][x+1])         +
+					    int(smallWorld[y+1][x-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][x+1])
 				alive = alive/255
 
 				//Flips cell or sends back original if no change was made
@@ -115,6 +171,7 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 				}
 			}
 		}
+
 
 		//Copy temp world into real world
 		for i := range smallWorld {
