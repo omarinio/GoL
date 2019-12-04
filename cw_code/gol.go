@@ -147,10 +147,10 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
 			for x := 0; x < p.imageWidth; x++ {
-				xLeft := (x+1) % p.imageWidth
-				xRight := x-1
-				if xRight < 0 {
-					xRight += p.imageWidth
+				xRight := (x+1) % p.imageWidth
+				xLeft := x-1
+				if xLeft < 0 {
+					xLeft += p.imageWidth
 				}
 
 				alive := 0
