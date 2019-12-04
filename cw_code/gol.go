@@ -88,71 +88,77 @@ func worker(startY, endY int, p golParams, out chan<- byte, in <-chan byte, wc w
 			smallWorld[smallWorldHeight-1][halo] = <-wc.lowerRec
 		}
 
-		//Calculate edge cases (right and left column) as we know they will wrap around
-		for y := 1; y < endY-startY+1; y++ {
-			//left column
-			x := 0
-			alive := 0
-			//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
-			//and then dividing it by 255 to get the number of alive cells
-			alive = int(smallWorld[y-1][p.imageWidth-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][x+1]) +
-				int(smallWorld[y][p.imageWidth-1]) + int(smallWorld[y][x+1]) +
-				int(smallWorld[y+1][p.imageWidth-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][x+1])
-			alive = alive / 255
-			//Flips cell or sends back original if no change was made
-			if smallWorld[y][x] != 0 {
-				if alive < 2 || alive > 3 {
-					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
-				} else {
-					tempSmallWorld[y][x] = smallWorld[y][x]
-				}
-			} else {
-				if alive == 3 {
-					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
-				} else {
-					tempSmallWorld[y][x] = smallWorld[y][x]
-				}
-			}
-		}
-
-		for y := 1; y < endY-startY+1; y++ {
-			//right columns
-			x := p.imageWidth - 1
-			alive := 0
-			//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
-			//and then dividing it by 255 to get the number of alive cells
-			alive = int(smallWorld[y-1][x-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][0]) +
-				int(smallWorld[y][x-1]) + int(smallWorld[y][0]) +
-				int(smallWorld[y+1][x-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][0])
-			alive = alive / 255
-
-			//Flips cell or sends back original if no change was made
-			if smallWorld[y][x] != 0 {
-				if alive < 2 || alive > 3 {
-					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
-				} else {
-					tempSmallWorld[y][x] = smallWorld[y][x]
-				}
-			} else {
-				if alive == 3 {
-					tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
-				} else {
-					tempSmallWorld[y][x] = smallWorld[y][x]
-				}
-			}
-		}
+		////Calculate edge cases (right and left column) as we know they will wrap around
+		//for y := 1; y < endY-startY+1; y++ {
+		//	//left column
+		//	x := 0
+		//	alive := 0
+		//	//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
+		//	//and then dividing it by 255 to get the number of alive cells
+		//	alive = int(smallWorld[y-1][p.imageWidth-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][x+1]) +
+		//		int(smallWorld[y][p.imageWidth-1]) + int(smallWorld[y][x+1]) +
+		//		int(smallWorld[y+1][p.imageWidth-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][x+1])
+		//	alive = alive / 255
+		//	//Flips cell or sends back original if no change was made
+		//	if smallWorld[y][x] != 0 {
+		//		if alive < 2 || alive > 3 {
+		//			tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+		//		} else {
+		//			tempSmallWorld[y][x] = smallWorld[y][x]
+		//		}
+		//	} else {
+		//		if alive == 3 {
+		//			tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+		//		} else {
+		//			tempSmallWorld[y][x] = smallWorld[y][x]
+		//		}
+		//	}
+		//}
+		//
+		//for y := 1; y < endY-startY+1; y++ {
+		//	//right columns
+		//	x := p.imageWidth - 1
+		//	alive := 0
+		//	//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
+		//	//and then dividing it by 255 to get the number of alive cells
+		//	alive = int(smallWorld[y-1][x-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][0]) +
+		//		int(smallWorld[y][x-1]) + int(smallWorld[y][0]) +
+		//		int(smallWorld[y+1][x-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][0])
+		//	alive = alive / 255
+		//
+		//	//Flips cell or sends back original if no change was made
+		//	if smallWorld[y][x] != 0 {
+		//		if alive < 2 || alive > 3 {
+		//			tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+		//		} else {
+		//			tempSmallWorld[y][x] = smallWorld[y][x]
+		//		}
+		//	} else {
+		//		if alive == 3 {
+		//			tempSmallWorld[y][x] = smallWorld[y][x] ^ 0xFF
+		//		} else {
+		//			tempSmallWorld[y][x] = smallWorld[y][x]
+		//		}
+		//	}
+		//}
 
 
 
 		//Counts number of alive neighbours for each cell
 		for y := 1; y < endY-startY+1; y++ {
-			for x := 1; x < p.imageWidth-1; x++ {
+			for x := 0; x < p.imageWidth; x++ {
+				xLeft := (x+1) % p.imageWidth
+				xRight := x-1
+				if xRight < 0 {
+					xRight += p.imageWidth
+				}
+
 				alive := 0
 				//Calculates how many alive cells there are by adding up all alive cells (each alive cell is 255)
 				//and then dividing it by 255 to get the number of alive cells
-				alive = int(smallWorld[y-1][x-1]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][x+1]) +
-					    int(smallWorld[y][x-1])                +              int(smallWorld[y][x+1])         +
-					    int(smallWorld[y+1][x-1]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][x+1])
+				alive = int(smallWorld[y-1][xLeft]) + int(smallWorld[y-1][x]) + int(smallWorld[y-1][xRight]) +
+					    int(smallWorld[y][xLeft])                +              int(smallWorld[y][xRight])         +
+					    int(smallWorld[y+1][xLeft]) + int(smallWorld[y+1][x]) + int(smallWorld[y+1][xRight])
 				alive = alive/255
 
 				//Flips cell or sends back original if no change was made
